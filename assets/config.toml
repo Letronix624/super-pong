@@ -1,0 +1,21 @@
+max_size = 30_000_000
+
+# deflate - 0 - 9
+# bwt - 0 - 9
+# zstd - 1 - 22, giving 0 is the same as giving 3.
+# lzma - 0 - 9
+# lz4 - 0 - 16
+compression_level = 10
+
+naming = "%gs%i"
+
+# The path relative where the binary gets compiled to.
+output = "assets"
+
+# groups and paths to folders where those groups get defined
+[groups]
+texture = "textures"
+sound = "sounds"
+music = "music"
+font = "fonts"
+
