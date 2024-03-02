@@ -8,7 +8,7 @@ Everything from code, textures, sounds and music made by Let.
 Tools used:
 - Helix text editor for coding
 - GIMP for all textures
-- LMMS and Audacity for music
+- Qtractor and Audacity for music
 - Audacity for recording sounds
 
 This game is made in Rust using my own game engine.
