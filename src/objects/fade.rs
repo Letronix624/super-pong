@@ -6,6 +6,7 @@ use let_engine::prelude::*;
 pub fn fade_in(duration: Duration, layers: &Layers) {
     let appearance = Appearance::new()
         .color(Color::BLACK)
+        .model(Some(Model::Square))
         .transform(Transform::default().size(vec2(10.0, 10.0)));
 
     let mut object = NewObjectBuilder::default()
@@ -23,8 +24,8 @@ pub fn fade_in(duration: Duration, layers: &Layers) {
             let elapsed = now.elapsed().as_secs_f32();
             let percentage = (elapsed - time) / (start_time.as_secs_f32() - time);
             object.appearance.get_color_mut().set_a(percentage);
-            object.sync();
+            object.sync().unwrap();
         }
-        object.remove();
+        let _ = object.remove();
     });
 }

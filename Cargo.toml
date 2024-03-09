@@ -15,7 +15,9 @@ license = "Apache-2.0"
 anyhow = "1.0.80"
 bincode = "1.3.3"
 directories = "5.0.1"
+native-dialog = "0.7.0"
 once_cell = "1.19.0"
+rand = "0.8.5"
 ron = "0.8.1"
 
   [dependencies.serde]
@@ -24,8 +26,7 @@ ron = "0.8.1"
 
   [dependencies.let-engine]
   path = "../let-engine/engine"
-  # default_features = false
-  features = [ "asset_system" ] #, "client" ]
+  features = [ "asset_system", "egui", "serde", "rand", "fast-math" ]
 
 [profile.release]
 opt-level = 3

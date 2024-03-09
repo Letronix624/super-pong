@@ -8,11 +8,12 @@ use crate::{
     FONT_STINGRAY, HEIGHT,
 };
 
-use super::{Game, Layers, Message};
+use super::{load_material, Layers, Message};
 use anyhow::Result;
 use let_engine::prelude::*;
 
 pub struct MainMenu {
+    layers: Layers,
     background: Object,
     bottom_backdrop: Object,
     title: Object,
@@ -23,26 +24,13 @@ pub struct MainMenu {
     quit_button: Button,
     version_number: Label<Object>,
 }
-fn load_material(asset: &[u8], layers: u32) -> Option<Material> {
-    let sampler = SamplerBuilder::default()
-        .mag_filter(Filter::Nearest)
-        .min_filter(Filter::Nearest)
-        .build()
-        .ok()?;
-    let texure_settings = TextureSettings {
-        srgb: true,
-        sampler,
-    };
-    let texture =
-        Texture::from_bytes(asset, ImageFormat::Png, layers, texure_settings.clone()).ok()?;
-    Some(Material::new_default_textured(&texture))
-}
 
 impl MainMenu {
-    pub fn load(layers: &Layers) -> Result<Self> {
+    pub fn new(layers: &Layers) -> Result<Self> {
         let appearance = Appearance::new()
+            .model(Some(Model::Square))
             .material(load_material(
-                &asset("textures/environment/backgrounds/bottom-backdrop.png")?,
+                &asset("textures/environment/backgrounds/bottom_backdrop.png")?,
                 1,
             ))
             .auto_scaled(HEIGHT)?;
@@ -54,9 +42,10 @@ impl MainMenu {
 
         let appearance = Appearance::new()
             .material(load_material(
-                &asset("textures/environment/backgrounds/sky.png")?,
+                &asset("textures/environment/backgrounds/title_sky.png")?,
                 1,
             ))
+            .model(Some(Model::Square))
             .auto_scaled(HEIGHT)?;
 
         let background = NewObjectBuilder::default()
@@ -65,10 +54,11 @@ impl MainMenu {
             .build()?
             .init(&layers.main)?;
 
-        layers.main.move_to_top(&bottom_backdrop)?;
-        layers.main.move_to_top(&background)?;
+        bottom_backdrop.move_to_top()?;
+        background.move_to_top()?;
 
         let appearance = Appearance::new()
+            .model(Some(Model::Square))
             .material(load_material(&asset("textures/environment/birds.png")?, 2))
             .auto_scaled(HEIGHT)?;
 
@@ -79,6 +69,7 @@ impl MainMenu {
             .init(&layers.main)?;
 
         let appearance = Appearance::new()
+            .model(Some(Model::Square))
             .material(load_material(&asset("textures/title.png")?, 1))
             .auto_scaled(HEIGHT)?;
 
@@ -92,6 +83,7 @@ impl MainMenu {
             .init(&layers.main)?;
 
         let apperance = Appearance::new()
+            .model(Some(Model::Square))
             .material(load_material(
                 &asset("textures/environment/rainbow.png")?,
                 1,
@@ -105,32 +97,40 @@ impl MainMenu {
             .build()?
             .init_with_parent(&title)?;
 
+        let button_material = load_material(&asset("textures/ui/button.png")?, 1);
+
         let play_button = Button::new(
-            Parent::Layer(&layers.main),
-            load_material(&asset("textures/ui/button.png")?, 1),
-            LabelCreateInfo::default()
-                .text("Play")
-                .scale(vec2(60.0, 60.0))
-                .align(Direction::Center),
-            Vec2::new(0.0, 0.3),
+            Parent::Layer(&layers.ui),
+            button_material.clone(),
+            Some(
+                LabelCreateInfo::default()
+                    .text("Play")
+                    .scale(vec2(60.0, 60.0))
+                    .align(Direction::Center),
+            ),
+            vec2(0.0, 0.3),
         )?;
         let settings_button = Button::new(
-            Parent::Layer(&layers.main),
-            load_material(&asset("textures/ui/button.png")?, 1),
-            LabelCreateInfo::default()
-                .text("Settings")
-                .scale(vec2(60.0, 60.0))
-                .align(Direction::Center),
-            Vec2::new(0.0, 0.55),
+            Parent::Layer(&layers.ui),
+            button_material.clone(),
+            Some(
+                LabelCreateInfo::default()
+                    .text("Settings")
+                    .scale(vec2(60.0, 60.0))
+                    .align(Direction::Center),
+            ),
+            vec2(0.0, 0.55),
         )?;
         let quit_button = Button::new(
-            Parent::Layer(&layers.main),
-            load_material(&asset("textures/ui/button.png")?, 1),
-            LabelCreateInfo::default()
-                .text("Quit")
-                .scale(vec2(60.0, 60.0))
-                .align(Direction::Center),
-            Vec2::new(0.0, 0.8),
+            Parent::Layer(&layers.ui),
+            button_material,
+            Some(
+                LabelCreateInfo::default()
+                    .text("Quit")
+                    .scale(vec2(60.0, 60.0))
+                    .align(Direction::Center),
+            ),
+            vec2(0.0, 0.8),
         )?;
 
         let version_number = Label::new(
@@ -138,7 +138,7 @@ impl MainMenu {
             LabelCreateInfo::default()
                 .text(env!("CARGO_PKG_VERSION"))
                 .scale(vec2(30.0, 30.0))
-                .transform(Transform::default())
+                .transform(Transform::default().position(vec2(0.0, 0.0)))
                 .align(Direction::Sw),
         )
         .init(&layers.ui)?;
@@ -146,6 +146,7 @@ impl MainMenu {
         fade_in(Duration::from_secs(5), layers);
 
         Ok(Self {
+            layers: layers.clone(),
             background,
             bottom_backdrop,
             birds,
@@ -159,25 +160,22 @@ impl MainMenu {
     }
 
     pub fn unload(self) {
-        self.background.remove();
-        self.bottom_backdrop.remove();
-        self.rainbow.remove();
-        self.title.remove();
-        self.birds.remove();
-        self.play_button.object.remove();
-        self.settings_button.object.remove();
-        self.quit_button.object.remove();
-        self.version_number.object.remove();
+        let _ = self.background.remove();
+        let _ = self.bottom_backdrop.remove();
+        let _ = self.rainbow.remove();
+        let _ = self.title.remove();
+        let _ = self.birds.remove();
+        let _ = self.play_button.object.remove();
+        let _ = self.settings_button.object.remove();
+        let _ = self.quit_button.object.remove();
+        let _ = self.version_number.object.remove();
     }
 
-    pub fn update(&mut self, layers: &Layers) -> Option<Message> {
+    pub fn update(&mut self) -> Result<Option<Message>> {
         let mut message = None;
-        let middle = layers.main.side_to_world(Vec2::ZERO);
+        let middle = self.layers.main.side_to_world(Vec2::ZERO);
 
         self.title.transform.position.x = middle.x;
-        self.play_button.object.transform.position.x = middle.x;
-        self.settings_button.object.transform.position.x = middle.x;
-        self.quit_button.object.transform.position.x = middle.x;
 
         let time = (TIME.time() / 10.0).sin() as f32;
 
@@ -187,29 +185,30 @@ impl MainMenu {
         self.birds.transform.position.x += TIME.delta_time() as f32 * 0.07;
         self.birds
             .appearance
-            .set_layer((TIME.time() % 1.0).round() as u32)
-            .unwrap();
+            .set_layer((TIME.time() % 1.0).round() as u32)?;
 
         if let Some(window) = SETTINGS.window() {
             self.version_number
                 .object
                 .appearance
                 .get_transform_mut()
-                .size = CameraScaling::Expand.scale(window.inner_size());
+                .size = CameraScaling::KeepVertical.scale(window.inner_size());
             self.version_number.sync();
         }
 
         self.play_button
             .on_release(|| message = Some(Message::SwitchScene(super::GameScene::Ingame)));
-        self.settings_button.on_release(|| println!("Options"));
+        self.settings_button
+            .on_release(|| message = Some(Message::ShowSettings(true)));
         self.quit_button.on_release(|| {
             message = Some(Message::Exit);
         });
 
-        self.title.sync();
-        self.background.sync();
-        self.bottom_backdrop.sync();
-        self.birds.sync();
-        message
+        self.title.sync()?;
+        self.background.sync()?;
+        self.bottom_backdrop.sync()?;
+        self.birds.sync()?;
+
+        Ok(message)
     }
 }

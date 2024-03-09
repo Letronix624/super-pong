@@ -12,10 +12,11 @@ naming = "%gs%i"
 # The path relative where the binary gets compiled to.
 output = "assets"
 
+exclude = [ "fonts" ]
+
 # groups and paths to folders where those groups get defined
 [groups]
 texture = "textures"
 sound = "sounds"
 music = "music"
-font = "fonts"
 

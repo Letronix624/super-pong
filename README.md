@@ -1,5 +1,5 @@
 # super-pong
-*Bullet hell pong with an aberrating theme*
+*Bullet hell pong with enemies that slowly exceed the uncanny valley scale as the game proceeds.*
 
 Made for Acerola Jam 0
 

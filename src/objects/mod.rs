@@ -1,13 +1,20 @@
 use std::sync::Arc;
 
+use crate::game::{GameSettings, Message};
+
 use super::game::Layers;
 use anyhow::Result;
 use let_engine::prelude::*;
 
 pub mod button;
 pub mod fade;
+pub mod framerate_counter;
 pub mod paddle;
 pub mod settings;
+
+pub mod enemies;
+pub mod particles;
+pub mod projectiles;
 
 #[derive(Debug, Clone)]
 pub struct Camera {
@@ -28,28 +35,29 @@ impl Camera {
     pub fn update(&mut self, width: [u32; 2]) {
         let scaling = CameraScaling::KeepVertical.scale(vec2(width[0] as f32, width[1] as f32));
         self.object.transform.position.x = scaling.x * 0.5;
-        self.object.sync();
+        self.object.sync().unwrap();
     }
 }
 
-#[derive(Clone, Debug)]
 pub struct Objects {
-    pub paddle: Option<paddle::Paddle>,
-    pub camera: Option<Camera>,
+    pub camera: Camera,
+    pub settings: settings::Settings,
+    framerate_display: framerate_counter::FramerateCounter,
 }
 
 impl Objects {
-    pub fn new(layers: &Layers) -> Self {
-        Self {
-            paddle: paddle::Paddle::new(&layers.main).ok(),
-            camera: Camera::new(&layers.main).ok(),
-        }
+    pub fn new(layers: &Layers, settings: GameSettings) -> Result<Self> {
+        Ok(Self {
+            camera: Camera::new(&layers.main)?,
+            settings: settings::Settings::new(layers, settings)?,
+            framerate_display: framerate_counter::FramerateCounter::new(layers)?,
+        })
     }
 
-    /// Updates all objects
-    pub fn update(&mut self) {
-        if let Some(paddle) = self.paddle.as_mut() {
-            paddle.update(INPUT.cursor_position().y);
-        }
+    /// Updates all tick updated objects.
+    pub fn tick_update(&mut self) -> Option<Message> {
+        let message = self.settings.update();
+        self.framerate_display.update();
+        message
     }
 }
