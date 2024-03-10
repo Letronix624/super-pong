@@ -143,6 +143,10 @@ impl MainMenu {
         )
         .init(&layers.ui)?;
 
+        if let Some(window) = SETTINGS.window() {
+            window.set_cursor_visible(true);
+        }
+
         fade_in(Duration::from_secs(5), layers);
 
         Ok(Self {
@@ -165,9 +169,9 @@ impl MainMenu {
         let _ = self.rainbow.remove();
         let _ = self.title.remove();
         let _ = self.birds.remove();
-        let _ = self.play_button.object.remove();
-        let _ = self.settings_button.object.remove();
-        let _ = self.quit_button.object.remove();
+        self.play_button.remove();
+        self.settings_button.remove();
+        self.quit_button.remove();
         let _ = self.version_number.object.remove();
     }
 

@@ -74,10 +74,12 @@ impl Objects {
         })
     }
 
+    pub fn update(&mut self) -> Option<Message> {
+        self.settings.update()
+    }
+
     /// Updates all tick updated objects.
-    pub fn tick_update(&mut self) -> Option<Message> {
-        let message = self.settings.update();
+    pub fn tick_update(&mut self) {
         self.framerate_display.update();
-        message
     }
 }

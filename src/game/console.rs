@@ -5,7 +5,7 @@ use let_engine::{
     SETTINGS,
 };
 
-use super::{Difficulty, Fullscreen, GameSettings, Message};
+use super::{Fullscreen, GameSettings, Message};
 
 #[derive(Clone, Debug)]
 pub struct Console {
@@ -76,32 +76,6 @@ impl Console {
         };
 
         match command {
-            "difficulty" => {
-                let Some(command) = tokens.next() else {
-                    self.print(format!(
-                        "usage:\n  difficulty [normal/hard]\ndifficulty={:?}",
-                        self.settings.difficulty
-                    ));
-                    return None;
-                };
-                let difficulty = match command {
-                    "normal" => Difficulty::Normal,
-                    "hard" => Difficulty::Hard,
-                    e => {
-                        self.print(format!("Difficulty \"{e}\" does not exist."));
-                        return None;
-                    }
-                };
-                let settings = GameSettings {
-                    difficulty,
-                    ..self.settings
-                };
-                self.print(format!(
-                    "Difficulty set: {:?} -> {:?}",
-                    self.settings.difficulty, difficulty
-                ));
-                return Some(Message::ApplySettings(settings));
-            }
             "vsync" => {
                 let Some(command) = tokens.next() else {
                     self.print(format!(
@@ -189,6 +163,18 @@ impl Console {
                 };
                 return None;
             }
+            "stage" => {
+                let Some(command) = tokens.next() else {
+                    self.print("usage:\n  stage [number]".to_string());
+                    return None;
+                };
+                let Ok(level) = command.parse() else {
+                    self.print(format!("Invalid stage \"{command}\"."));
+                    return None;
+                };
+
+                return Some(Message::ChangeLevel(level));
+            }
             "quit" => return Some(Message::Exit),
             "exit" => return Some(Message::Exit),
             "close" => self.active = false,
@@ -214,11 +200,11 @@ impl Console {
 
 const HELP_MESSAGE: &str = "
 Available commands:
-  difficulty [normal/hard] - sets the difficulty of the game.
   vsync [on/off] - Enables or disables vsync.
   fps_limit [number] - sets the framerate limit of the game.
   fullscreen [windowed/borderless/exclusive] - Sets if the window is in fullscreen.
   scene [scene] - changes the scene.
+  stage [number] - sets the stage.
   clear - clears the console
   clear-cache - clears the cache reducing memory usage.
   close - closes the terminal 

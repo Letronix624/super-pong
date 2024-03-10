@@ -65,11 +65,15 @@ impl Button {
         })
     }
 
-    pub fn set_visibility(&mut self, visible: bool) {
-        self.object.appearance.set_visible(visible);
-        // if let Some(text) = self.text.as_mut() {
-        //     text.object.appearance.set_visible(visible);
-        // }
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.object.collider_mut().unwrap().set_enabled(enabled);
+    }
+
+    pub fn remove(self) {
+        let _ = self.object.remove();
+        if let Some(label) = self.text {
+            let _ = label.object.remove();
+        }
     }
 
     fn update(&mut self) -> Option<ButtonReport> {

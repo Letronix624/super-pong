@@ -11,6 +11,7 @@ use crate::{
         enemies::{Enemy, EnemyMessage, EnemyType},
         paddle::Paddle,
         projectiles::Projectile,
+        settings::GameMenu,
         Camera,
     },
     FONT_STINGRAY, HEIGHT,
@@ -83,16 +84,19 @@ impl GameState {
 }
 
 pub struct Loop {
-    state: GameState,
+    pub state: GameState,
     sounds: Sounds,
 
     pub paddle: Paddle,
     pub camera: Camera,
     score: Label<Object>,
+    layers: Layers,
 
     title: Title,
     background: Background,
     level: Option<Level>,
+
+    menu: GameMenu,
 
     pub enemies: Vec<Box<dyn Enemy>>,
     pub projectiles: Vec<Box<dyn Projectile>>,
@@ -104,7 +108,7 @@ impl Loop {
         let sounds = Sounds::new()?;
         let background = Background::new(&layers.main)?;
         let title = Title::new(&layers.ui)?;
-        let level = tutorial(layers).ok();
+        let level = None;
         let score = Label::new(
             &FONT_STINGRAY,
             LabelCreateInfo::default()
@@ -124,6 +128,9 @@ impl Loop {
             let _ = window.set_cursor_grab(CursorGrabMode::Confined);
             window.set_cursor_visible(false);
         }
+        let mut menu = GameMenu::new(&layers.ui)?;
+        menu.set_visible(false);
+        menu.set_enabled(false);
 
         Ok(Self {
             state,
@@ -131,9 +138,11 @@ impl Loop {
             paddle: Paddle::new(&layers.main)?,
             camera,
             score,
+            layers: layers.clone(),
             title,
             background,
             level,
+            menu,
             enemies: vec![],
             projectiles: vec![],
         })
@@ -153,6 +162,7 @@ impl Loop {
         for projectile in &mut self.projectiles {
             projectile.remove();
         }
+        self.menu.remove();
     }
 
     pub fn update(&mut self) -> Result<Option<Message>> {
@@ -170,7 +180,7 @@ impl Loop {
             match message {
                 LevelMessage::SpawnEnemy(enemy) => {
                     self.enemies
-                        .push(enemy.spawn(self.background.sky.layer(), &self.sounds)?);
+                        .push(enemy.spawn(&self.layers.main, &self.sounds)?);
                 }
                 LevelMessage::ShowTitle { color, size, text } => {
                     self.title.set_color(color);
@@ -182,10 +192,16 @@ impl Loop {
                 LevelMessage::Done => {
                     self.state.stage += 1;
                     self.state.save()?;
-                    return Ok(Some(Message::SwitchScene(super::GameScene::Menu)));
+                    self.level = None;
                 }
                 _ => (),
             }
+        } else {
+            self.level = match self.state.stage {
+                0 => Some(tutorial(&self.layers)?),
+                1 => None,
+                _ => None,
+            };
         }
         self.title.update()?;
 
@@ -278,8 +294,29 @@ impl Loop {
         self.background.update()?;
         self.camera.update();
         self.score.sync();
+        let message = self.menu.update()?;
 
-        Ok(None)
+        Ok(message)
+    }
+
+    pub fn event(&mut self, event: &Event) -> Result<()> {
+        match event {
+            Event::Input(InputEvent::KeyboardInput { input }) => {
+                if let Key::Named(NamedKey::Escape) = input.keycode {
+                    if input.state == ElementState::Pressed {
+                        self.menu.toggle();
+                    }
+                }
+            }
+            Event::Input(InputEvent::MouseMotion(delta)) => {
+                self.paddle.delta = *delta;
+            }
+            Event::Window(WindowEvent::Resized(_)) => {
+                self.camera.update();
+            }
+            _ => (),
+        }
+        Ok(())
     }
 }
 

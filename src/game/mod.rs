@@ -24,34 +24,21 @@ pub const SAMPLER: Sampler = Sampler {
     border_color: BorderColor::FloatTransparentBlack,
 };
 
-#[derive(Default, Clone, Copy, Debug, Deserialize, Serialize)]
-pub enum Difficulty {
-    Normal,
-    #[default]
-    Hard,
-}
-
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct GameSettings {
-    pub difficulty: Difficulty,
     pub vsync: bool,
     pub fps_limit: u32,
     pub fullscreen: Fullscreen,
     pub resolution: Vec2,
-    pub particle_high: bool,
-    pub screen_shake: u32,
 }
 
 impl Default for GameSettings {
     fn default() -> Self {
         Self {
-            difficulty: Difficulty::Hard,
             vsync: true,
             fullscreen: Fullscreen::Exclusive,
             fps_limit: 0,
             resolution: vec2(455.0, 256.0),
-            particle_high: true,
-            screen_shake: 100,
         }
     }
 }
@@ -185,6 +172,11 @@ impl Game {
                         .print(format!("Error: Could not switch scene.\n{error}"));
                 }
             }
+            Message::ChangeLevel(level) => {
+                if let Scene::Ingame(scene) = &mut self.scene {
+                    scene.state.stage = level as u32;
+                }
+            }
             Message::ApplySettings(settings) => {
                 self.settings = settings;
 
@@ -236,16 +228,22 @@ impl let_engine::Game for Game {
             Err(error) => crash("Failed to update scene", &error.to_string()),
             _ => (),
         }
-    }
-    fn tick(&mut self) {
-        if let Some(message) = self.objects.tick_update() {
+        if let Some(message) = self.objects.update() {
             self.execute_message(message);
         }
+    }
+    fn tick(&mut self) {
+        self.objects.tick_update();
     }
     fn start(&mut self) {
         self.execute_message(Message::ApplySettings(self.settings));
     }
     fn event(&mut self, event: events::Event) {
+        if let Scene::Ingame(game) = &mut self.scene {
+            game.event(&event)
+                .inspect_err(|error| crash("Game Event Error", &error.to_string()))
+                .unwrap();
+        }
         match event {
             Event::Egui(ctx) => {
                 if let Some(message) = self.console.update(&ctx) {
@@ -253,27 +251,11 @@ impl let_engine::Game for Game {
                 }
             }
             Event::Input(InputEvent::KeyboardInput { input }) => {
-                if let Key::Named(code) = input.keycode {
-                    match code {
-                        // Show console
-                        NamedKey::F7 => {
-                            if input.state == ElementState::Released {
-                                self.console.toggle();
-                            }
-                        }
-                        // Show settings
-                        NamedKey::Escape => {
-                            if input.state == ElementState::Pressed {
-                                self.objects.settings.toggle();
-                            }
-                        }
-                        _ => (),
+                if let Key::Named(NamedKey::F7) = input.keycode {
+                    // Show console
+                    if input.state == ElementState::Released {
+                        self.console.toggle();
                     }
-                }
-            }
-            Event::Input(InputEvent::MouseMotion(delta)) => {
-                if let Scene::Ingame(game_loop) = &mut self.scene {
-                    game_loop.paddle.delta = delta;
                 }
             }
             Event::Window(WindowEvent::Resized(_)) => {
@@ -339,6 +321,7 @@ impl Scene {
 #[derive(Clone, Copy, Debug)]
 pub enum Message {
     Exit,
+    ChangeLevel(usize),
     ShowSettings(bool),
     SwitchScene(GameScene),
     ApplySettings(GameSettings),

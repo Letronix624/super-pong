@@ -26,15 +26,7 @@ pub struct Paddle {
     grace_pediod: Instant,
 }
 
-const ARROW: ([Vertex; 4], [u32; 6]) = (
-    [
-        vert(0.0, -0.1),
-        vert(0.0, -0.5),
-        vert(0.04, -0.46),
-        vert(-0.04, -0.46),
-    ],
-    [0, 1, 1, 2, 1, 3],
-);
+const ARROW: ([Vertex; 2], [u32; 2]) = ([vert(0.0, -0.1), vert(0.0, -4.0)], [0, 1]);
 
 impl Paddle {
     pub fn new(layer: &Arc<Layer>) -> Result<Self> {
@@ -92,12 +84,12 @@ impl Paddle {
                 Material::new(
                     MaterialSettingsBuilder::default()
                         .topology(Topology::LineList)
-                        .line_width(16.0)
+                        .line_width(10.0)
                         .build()?,
                 )
                 .ok(),
             )
-            .color(Color::from_r(0.5));
+            .color(Color::from_rgba(0.3, 0.0, 0.0, 0.4));
         arrow.transform.rotation = PI / 2.0;
 
         cursor.appearance = Appearance::new()
