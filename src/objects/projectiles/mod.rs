@@ -4,6 +4,8 @@ use anyhow::Result;
 use let_engine::prelude::*;
 use once_cell::sync::Lazy;
 
+use crate::game::sounds::Sounds;
+
 pub trait Projectile: Send + Sync {
     fn update(&mut self); // -> ProjectileMessage;
     fn touching(&self) -> Vec<usize>;
@@ -32,9 +34,15 @@ impl ProjectileType {
         layer: &Arc<Layer>,
         position: Vec2,
         direction: Vec2,
+        sounds: &Sounds,
     ) -> Result<Box<dyn Projectile>> {
         Ok(match self {
-            Self::Square => Box::new(Square::new(layer, position, direction)?),
+            Self::Square => Box::new(Square::new(
+                layer,
+                position,
+                direction,
+                sounds.square_hit.clone(),
+            )?),
         })
     }
 }
@@ -46,6 +54,7 @@ pub struct Square {
     age: Instant,
     friendly: bool,
     damage: f32,
+    sound: Sound,
 }
 
 static SQUARE: Lazy<Appearance> = Lazy::new(|| {
@@ -54,7 +63,7 @@ static SQUARE: Lazy<Appearance> = Lazy::new(|| {
 });
 
 impl Square {
-    pub fn new(layer: &Arc<Layer>, position: Vec2, direction: Vec2) -> Result<Self> {
+    pub fn new(layer: &Arc<Layer>, position: Vec2, direction: Vec2, sound: Sound) -> Result<Self> {
         let object = NewObjectBuilder::default()
             .appearance(SQUARE.clone())
             .transform(Transform::default().position(position))
@@ -68,6 +77,7 @@ impl Square {
             age: Instant::now(),
             friendly: false,
             damage: 1.0,
+            sound,
         })
     }
 }
@@ -91,6 +101,7 @@ impl Projectile for Square {
     }
 
     fn rebound(&mut self, direction: Vec2) {
+        self.sound.play().unwrap();
         self.friendly = true;
         self.direction = direction;
     }

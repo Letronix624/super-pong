@@ -2,6 +2,8 @@ use anyhow::Result;
 use let_engine::prelude::*;
 use std::sync::Arc;
 
+use crate::game::sounds::Sounds;
+
 use super::projectiles::ProjectileType;
 
 pub mod target;
@@ -51,9 +53,9 @@ pub enum EnemyType {
 }
 
 impl EnemyType {
-    pub fn spawn(&self, layer: &Arc<Layer>) -> Result<Box<dyn Enemy>> {
+    pub fn spawn(&self, layer: &Arc<Layer>, sounds: &Sounds) -> Result<Box<dyn Enemy>> {
         Ok(match self {
-            Self::Target => Box::new(target::Target::new(layer)?),
+            Self::Target => Box::new(target::Target::new(layer, sounds.clone())?),
             _ => todo!(),
         })
     }

@@ -1,4 +1,8 @@
-use std::{f32::consts::PI, sync::Arc};
+use std::{
+    f32::consts::PI,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Result;
 /// The player seen on the left side of the screen.
@@ -9,7 +13,7 @@ use crate::HEIGHT;
 #[derive(Clone, Debug)]
 pub struct Paddle {
     pub health: f32,
-    max_health: f32,
+    pub max_health: f32,
 
     pub delta: Vec2,
     pub object: Object,
@@ -18,6 +22,8 @@ pub struct Paddle {
 
     pub body: Object,
     pub health_bar: Object,
+
+    grace_pediod: Instant,
 }
 
 const ARROW: ([Vertex; 4], [u32; 6]) = (
@@ -118,22 +124,15 @@ impl Paddle {
             cursor,
             body,
             health_bar,
+            grace_pediod: Instant::now(),
         })
     }
 
     pub fn damage(&mut self, damage: f32) {
-        self.health -= damage;
-        let body_size = self.body.appearance.get_transform().size - 0.0156;
-        let size = body_size * vec2(1.0, self.health / self.max_health);
-        self.health_bar.appearance.get_transform_mut().size = size;
-        self.health_bar.appearance.get_transform_mut().position.y = -size.y + body_size.y;
-        self.health_bar
-            .appearance
-            .set_color(Color::from_rgb(0.5, 0.04, 0.05).lerp(
-                Color::from_rgb(0.49, 0.886, 0.643),
-                self.health / self.max_health,
-            ));
-        self.health_bar.sync().unwrap();
+        if self.grace_pediod.elapsed() > Duration::from_secs(1) {
+            self.grace_pediod = Instant::now();
+            self.health -= damage;
+        }
     }
 
     pub fn rebound_direction(&self) -> Vec2 {
@@ -162,14 +161,33 @@ impl Paddle {
             .clamp(vec2(0.0, -0.9), vec2(1.0, 0.9));
 
         let rotation = &mut self.arrow.transform.rotation;
-        let delta_time = delta_time * 3.0;
         *rotation -= (INPUT.mouse_down(&MouseButton::Left) as u8) as f32 * delta_time;
         *rotation += (INPUT.mouse_down(&MouseButton::Right) as u8) as f32 * delta_time;
         *rotation = rotation.clamp(PI * 0.25, PI * 0.75);
 
+        let body_size = self.body.appearance.get_transform().size - 0.0156;
+        let size = body_size * vec2(1.0, self.health / self.max_health);
+        self.health_bar.appearance.get_transform_mut().size = size;
+        self.health_bar.appearance.get_transform_mut().position.y = -size.y + body_size.y;
+        self.health_bar
+            .appearance
+            .set_color(Color::from_rgb(0.5, 0.04, 0.05).lerp(
+                Color::from_rgb(0.49, 0.886, 0.643),
+                self.health / self.max_health,
+            ));
+
+        if self.grace_pediod.elapsed() > Duration::from_secs(1) {
+            self.body.appearance.set_color(Color::WHITE);
+        } else {
+            self.body
+                .appearance
+                .set_color(Color::from_rgb(2.0, 0.7, 0.6));
+        }
+
         self.arrow.sync().unwrap();
         self.cursor.sync().unwrap();
         object.sync().unwrap();
+        self.health_bar.sync().unwrap();
     }
 
     pub fn unload(self) {

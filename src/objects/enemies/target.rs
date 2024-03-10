@@ -1,3 +1,4 @@
+use once_cell::sync::Lazy;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -7,11 +8,15 @@ use anyhow::Result;
 use let_engine::prelude::*;
 use rand::random;
 
-use crate::{game::load_material, objects::projectiles::ProjectileType, HEIGHT};
+use crate::{
+    game::{load_material, sounds::Sounds, SAMPLER},
+    objects::{particles::debris_particle, projectiles::ProjectileType},
+    HEIGHT,
+};
 
 use super::{Enemy, EnemyMessage};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Target {
     object: Option<Object>,
     position: Vec2,
@@ -19,10 +24,11 @@ pub struct Target {
 
     last_hit: Instant,
     last_shot: Instant,
+    sounds: Sounds,
 }
 
 impl Target {
-    pub fn new(layer: &Arc<Layer>) -> Result<Self> {
+    pub fn new(layer: &Arc<Layer>, sounds: Sounds) -> Result<Self> {
         let material = load_material(&asset("textures/enemies/target/target.png")?, 2);
         let appearance = Appearance::new()
             .model(Some(Model::Square))
@@ -49,6 +55,7 @@ impl Target {
             hp: 2.0,
             last_hit: Instant::now(),
             last_shot: Instant::now(),
+            sounds,
         })
     }
 
@@ -71,6 +78,7 @@ impl Enemy for Target {
         let mut hit = false;
         for id in ids {
             if id == self.object.as_ref().unwrap().id() {
+                self.sounds.target_hit.play().unwrap();
                 self.hp -= damage;
                 self.last_hit = Instant::now();
                 hit = true;
@@ -112,6 +120,33 @@ impl Enemy for Target {
         }
     }
     fn remove(&mut self) {
+        self.sounds.target_destroy.play().unwrap();
+        let object = self.object.as_mut().unwrap();
+        for _ in 0..3 {
+            debris_particle(
+                object.layer(),
+                TARGETDEBRIS.clone(),
+                object.transform.position,
+                random::<Vec2>() - vec2(0.5, 0.0),
+            );
+        }
         let _ = std::mem::take(&mut self.object).unwrap().remove();
     }
 }
+
+static TARGETDEBRIS: Lazy<Appearance> = Lazy::new(|| {
+    Appearance::new_instanced(
+        Some(Model::Square),
+        Some(Material::new_default_textured_instance(
+            &Texture::from_bytes(
+                &asset("textures/enemies/target/gib.png").unwrap(),
+                ImageFormat::Png,
+                1,
+                TextureSettings::default().srgb(true).sampler(SAMPLER),
+            )
+            .unwrap(),
+        )),
+    )
+    .auto_scaled(HEIGHT)
+    .unwrap()
+});

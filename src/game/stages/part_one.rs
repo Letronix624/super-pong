@@ -1,13 +1,17 @@
 use std::{collections::VecDeque, time::Duration};
 
+use anyhow::Result;
 use let_engine::prelude::*;
 
 use crate::{
-    game::game_loop::{Level, LevelMessage as Msg},
+    game::{
+        game_loop::{Level, LevelMessage as Msg},
+        Layers,
+    },
     objects::enemies::EnemyType,
 };
 
-pub fn tutorial() -> Level {
+pub fn tutorial(layers: &Layers) -> Result<Level> {
     let color = Color::from_rgb(0.9, 0.3, 0.1);
 
     let events = VecDeque::from([
@@ -56,5 +60,5 @@ pub fn tutorial() -> Level {
         Msg::SpawnEnemy(EnemyType::Target),
     ]);
 
-    Level::new(2, Duration::from_secs(2), events)
+    Level::new(layers, 2, Duration::from_secs(2), events)
 }

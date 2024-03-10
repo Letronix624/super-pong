@@ -10,19 +10,20 @@ use crate::{
     objects::{
         enemies::{Enemy, EnemyMessage, EnemyType},
         paddle::Paddle,
-        particles::{Particle, ParticleMessage},
         projectiles::Projectile,
+        Camera,
     },
     FONT_STINGRAY, HEIGHT,
 };
 
-use super::{load_material, stages::part_one::tutorial, Layers, Message, SAMPLER};
+use super::{load_material, sounds::Sounds, stages::part_one::tutorial, Layers, Message, SAMPLER};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct GameState {
     pub stage: u32,
+    pub score: u32,
     pub kills: u32,
 }
 
@@ -83,8 +84,11 @@ impl GameState {
 
 pub struct Loop {
     state: GameState,
+    sounds: Sounds,
 
     pub paddle: Paddle,
+    pub camera: Camera,
+    score: Label<Object>,
 
     title: Title,
     background: Background,
@@ -92,15 +96,30 @@ pub struct Loop {
 
     pub enemies: Vec<Box<dyn Enemy>>,
     pub projectiles: Vec<Box<dyn Projectile>>,
-    pub particles: Vec<Box<dyn Particle>>,
 }
 
 impl Loop {
     pub fn new(layers: &Layers) -> Result<Self> {
         let state = GameState::load_or_init()?;
+        let sounds = Sounds::new()?;
         let background = Background::new(&layers.main)?;
         let title = Title::new(&layers.ui)?;
-        let level = Some(tutorial());
+        let level = tutorial(layers).ok();
+        let score = Label::new(
+            &FONT_STINGRAY,
+            LabelCreateInfo::default()
+                .scale(vec2(50.0, 50.0))
+                .text(state.score.to_string())
+                .align(Direction::N)
+                .appearance(
+                    Appearance::default()
+                        .transform(Transform::default().size(vec2(2.0, 0.96)))
+                        .color(Color::BLACK),
+                ),
+        )
+        .init(&layers.ui)?;
+        let mut camera = Camera::new(&layers.main)?;
+        camera.update();
         if let Some(window) = SETTINGS.window() {
             let _ = window.set_cursor_grab(CursorGrabMode::Confined);
             window.set_cursor_visible(false);
@@ -108,13 +127,15 @@ impl Loop {
 
         Ok(Self {
             state,
+            sounds,
             paddle: Paddle::new(&layers.main)?,
+            camera,
+            score,
             title,
             background,
             level,
             enemies: vec![],
             projectiles: vec![],
-            particles: vec![],
         })
     }
 
@@ -122,18 +143,21 @@ impl Loop {
         self.background.unload();
         self.title.remove();
         self.paddle.unload();
+        let _ = self.score.object.remove();
+        if let Some(level) = self.level {
+            level.unload();
+        }
         for enemy in &mut self.enemies {
             enemy.remove();
         }
         for projectile in &mut self.projectiles {
             projectile.remove();
         }
-        for particle in &mut self.particles {
-            particle.remove();
-        }
     }
 
     pub fn update(&mut self) -> Result<Option<Message>> {
+        self.paddle.health = (self.paddle.health + TIME.delta_time() as f32 * 0.03)
+            .clamp(0.0, self.paddle.max_health);
         self.paddle.update();
 
         if self.paddle.health <= 0.0 {
@@ -145,7 +169,8 @@ impl Loop {
 
             match message {
                 LevelMessage::SpawnEnemy(enemy) => {
-                    self.enemies.push(enemy.spawn(self.background.sky.layer())?);
+                    self.enemies
+                        .push(enemy.spawn(self.background.sky.layer(), &self.sounds)?);
                 }
                 LevelMessage::ShowTitle { color, size, text } => {
                     self.title.set_color(color);
@@ -182,6 +207,8 @@ impl Loop {
                             if let Some(level) = self.level.as_mut() {
                                 level.kill();
                                 self.state.kills += 1;
+                                self.state.score += (projectile.damage() * 100.0) as u32;
+                                self.score.text = self.state.score.to_string();
                             }
                             enemy.remove();
                             false
@@ -198,17 +225,22 @@ impl Loop {
                     return false;
                 }
             } else {
-                // send it to the arrow
+                // damage
                 let position = projectile.position();
                 if position.x < 0.0 {
                     self.paddle.damage(projectile.damage());
                     projectile.remove();
+                    self.camera.shake();
+                    self.sounds.damage.play().unwrap();
                     return false;
                 }
 
+                // send it to the arrow
                 if touching.contains(self.paddle.object.id()) {
                     if position.x < 0.1 {
                         // hard shot
+                        self.sounds.critical.play().unwrap();
+                        self.camera.shake();
                         projectile.damage_multiplier(2.0);
                         projectile.rebound(self.paddle.rebound_direction() * 2.0);
                     } else {
@@ -231,25 +263,21 @@ impl Loop {
                     position,
                     direction,
                 } => {
-                    let projectile =
-                        projectile_type.spawn(self.background.sky.layer(), position, direction)?;
+                    let projectile = projectile_type.spawn(
+                        self.background.sky.layer(),
+                        position,
+                        direction,
+                        &self.sounds,
+                    )?;
                     self.projectiles.push(projectile);
                 }
                 EnemyMessage::Particle => (),
             }
         }
 
-        for particle in &mut self.particles {
-            let message = particle.update();
-
-            match message {
-                ParticleMessage::None => (),
-                ParticleMessage::Done => (// delete
-                    ),
-            }
-        }
-
         self.background.update()?;
+        self.camera.update();
+        self.score.sync();
 
         Ok(None)
     }
@@ -261,23 +289,55 @@ pub struct Level {
     event_duration: Duration,
     last_event: Instant,
     events: VecDeque<LevelMessage>,
+    events_count: usize,
+
+    progress_bar: Object,
 }
 
 impl Level {
-    pub fn new(enemy_limit: u32, event_duration: Duration, events: VecDeque<LevelMessage>) -> Self {
-        Self {
+    pub fn new(
+        layers: &Layers,
+        enemy_limit: u32,
+        event_duration: Duration,
+        events: VecDeque<LevelMessage>,
+    ) -> Result<Self> {
+        let appearance = Appearance::new()
+            .model(Some(Model::Square))
+            .transform(
+                Transform::default()
+                    .position(vec2(0.0, -1.0))
+                    .size(vec2(2.0, 0.02)),
+            )
+            .color(Color::from_rgb(0.2, 0.1, 1.0));
+
+        let progress_bar = NewObjectBuilder::default()
+            .appearance(appearance)
+            .build()?
+            .init(&layers.ui)?;
+
+        Ok(Self {
             enemy_limit,
             enemies: 0,
             event_duration,
             last_event: Instant::now(),
+            events_count: events.len(),
             events,
-        }
+            progress_bar,
+        })
     }
 
     /// Progresses the current stage.
     pub fn progress(&mut self) -> Result<LevelMessage> {
         if self.enemies < self.enemy_limit && self.last_event.elapsed() > self.event_duration {
             if let Some(message) = self.events.pop_front() {
+                if let Some(window) = SETTINGS.window() {
+                    self.progress_bar.transform.size.x =
+                        CameraScaling::KeepVertical.scale(window.inner_size()).x
+                            * 0.5
+                            * (self.events.len() as f32 / self.events_count as f32);
+                    self.progress_bar.sync()?;
+                }
+
                 self.last_event = Instant::now();
                 match message {
                     LevelMessage::SpawnEnemy(_) => self.enemies += 1,
@@ -294,6 +354,10 @@ impl Level {
         } else {
             Ok(LevelMessage::None)
         }
+    }
+
+    pub fn unload(self) {
+        let _ = self.progress_bar.remove();
     }
 
     pub fn kill(&mut self) {

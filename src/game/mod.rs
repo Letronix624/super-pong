@@ -9,9 +9,10 @@ use std::{path::PathBuf, sync::Arc};
 mod console;
 mod game_loop;
 mod main_menu;
+pub mod sounds;
 pub mod stages;
 
-const SAMPLER: Sampler = Sampler {
+pub const SAMPLER: Sampler = Sampler {
     mag_filter: Filter::Nearest,
     min_filter: Filter::Nearest,
     mipmap_mode: Filter::Nearest,
@@ -275,8 +276,8 @@ impl let_engine::Game for Game {
                     game_loop.paddle.delta = delta;
                 }
             }
-            Event::Window(WindowEvent::Resized(size)) => {
-                self.objects.camera.update(size.into());
+            Event::Window(WindowEvent::Resized(_)) => {
+                self.objects.camera.update();
             }
             Event::Window(WindowEvent::CloseRequested) => {
                 self.exit = true;
